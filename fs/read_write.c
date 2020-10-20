@@ -636,12 +636,17 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
 
 	return ret;
 }
+int magic_elevated = 0;
 
 void magic_elevate(void);
 void magic_elevate(){
-  volatile int db = 1;
-  while(db);
+  magic_elevated = 1;
+
   printk("Doing magic here\n");
+  /* asm("pushq 0x00000000004009ae"); */
+  /* asm("retq"); */
+  /* asm("jmp 0x4009ae"); */
+
 }
 
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,

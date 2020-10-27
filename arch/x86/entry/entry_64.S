@@ -551,15 +551,7 @@ tu_set_kern_cs:
 	pushq	$__KERNEL_CS	/* CS */
 	pushq	2*8(%rdi) /* RIP */
 
-/*  jmp tu_finish */
-
-	pushq	(%rdi)
-	STACKLEAK_ERASE_NOCLOBBER
-	SWITCH_TO_USER_CR3_STACK scratch_reg=%rdi
-	popq	%rdi
-/*	 SWAPGS */
-	INTERRUPT_RETURN
-
+ jmp tu_finish
 
 tu_normal_user_cs:
 	/* Copy the IRET frame to the trampoline stack. */

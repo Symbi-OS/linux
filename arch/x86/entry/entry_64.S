@@ -528,17 +528,16 @@ tuLab:
   /* Preserve rax */
   pushq %rax
 
-  /* Is there a way to skip this? */
-  movq (magic_elevated), %rax
+  /* This reads elevated flag out of current task struct... for now. */
 
-	/* Are we on elevate path? */
-  cmpq $0, %rax
+  mov    %gs:0x17d00, %rax
+  /* Bitwise and */
+  testb  $0x20,       0x450(%rax)
 
-  /* Restore rax */
-  popq %rax /* Doesn't touch flags */
+  popq %rax
 
-  /* We are on elevate path */
-  jnz tu_set_kern_cs
+  /*Jump if not zero ZF=0*/
+  jnz     tu_set_kern_cs
 
   /* Not on elevate path,
   Go to normal usage of user cs */

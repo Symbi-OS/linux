@@ -2,6 +2,8 @@
 #ifndef _LINUX_SCHED_H
 #define _LINUX_SCHED_H
 
+#define CONFIG_SYMBIOTE
+
 /*
  * Define 'struct task_struct' and provide the main scheduler
  * APIs (schedule(), wakeup variants, etc.)
@@ -795,6 +797,12 @@ struct task_struct {
 #ifdef CONFIG_PSI
 	/* Stalled due to lack of memory */
 	unsigned			in_memstall:1;
+#endif
+
+
+#ifdef CONFIG_SYMBIOTE
+  /* Denotes task returns from syscall in ring 0*/
+  unsigned      symbiote_elevated:1;
 #endif
 
 	unsigned long			atomic_flags; /* Flags requiring atomic access. */

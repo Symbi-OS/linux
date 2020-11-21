@@ -2,6 +2,8 @@
 #ifndef _LINUX_SCHED_H
 #define _LINUX_SCHED_H
 
+#define CONFIG_SYMBIOTE
+
 /*
  * Define 'struct task_struct' and provide the main scheduler
  * APIs (schedule(), wakeup variants, etc.)
@@ -862,6 +864,12 @@ struct task_struct {
 #ifdef CONFIG_PAGE_OWNER
 	/* Used by page_owner=on to detect recursion in page tracking. */
 	unsigned			in_page_owner:1;
+#endif
+
+
+#ifdef CONFIG_SYMBIOTE
+  /* Denotes task returns from syscall in ring 0*/
+  unsigned      symbiote_elevated:1;
 #endif
 
 	unsigned long			atomic_flags; /* Flags requiring atomic access. */

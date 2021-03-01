@@ -625,7 +625,7 @@ void magic_lower(){
   // Set to lowered if set.
   if(current->symbiote_elevated == 1 ){
     current->symbiote_elevated = 0;
-    printk("Unset symbiote_elevated flag of task struct\n");
+    /* printk("Unset symbiote_elevated flag of task struct\n"); */
   } else{
     printk("Trying to lower non elevated task???\n");
   }
@@ -642,7 +642,7 @@ void magic_elevate(){
     printk("Already Elevated????\n");
   } else{
     current->symbiote_elevated = 1;
-    printk("Set symbiote_elevated flag of task struct\n");
+    /* printk("Set symbiote_elevated flag of task struct\n"); */
   }
 
   // Read current GS_BASE
@@ -661,11 +661,11 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
   // Fn name is __do_sys_write
 
   if(count == 7 && !strcmp(buf, "elevate")){
-    printk("found magic elevate string\n");
+    /* printk("found magic elevate string\n"); */
     magic_elevate();
     return 7;
   }else if (count == 5 && !strcmp(buf, "lower") ){
-    printk("found magic lower string\n");
+    /* printk("found magic lower string\n"); */
     magic_lower();
     return 5;
   }

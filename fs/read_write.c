@@ -639,6 +639,11 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
 
 unsigned long kernel_gs_base_elevate, user_gs_base_elevate;
 
+int magic_check_elevate(void);
+int magic_check_elevate(){
+  return current->symbiote_elevated;
+}
+
 void magic_lower(void);
 void magic_lower(){
   // Set to lowered if set.

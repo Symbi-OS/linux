@@ -527,13 +527,16 @@ SYM_INNER_LABEL(swapgs_restore_regs_and_return_to_usermode, SYM_L_GLOBAL)
 tuLab:
   /* Preserve rax */
   pushq %rax
-
+  pushq %r11
+  pushq %r10
   /* This reads elevated flag out of current task struct... for now. */
 
-  mov    %gs:0x17d00, %rax
+  call magic_check_elevate
   /* Bitwise and */
-  testb  $0x20,       0x450(%rax)
+  testb  $0x1, %al
 
+  popq %r10
+  popq %r11
   popq %rax
 
   /*Jump if not zero ZF=0*/

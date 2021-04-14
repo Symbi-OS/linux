@@ -2,7 +2,7 @@
 VERSION = 5
 PATCHLEVEL = 8
 SUBLEVEL = 0
-EXTRAVERSION =
+EXTRAVERSION = -symbiote
 NAME = Kleptomaniac Octopus
 
 # *DOCUMENTATION*

@@ -526,18 +526,31 @@ SYM_INNER_LABEL(swapgs_restore_regs_and_return_to_usermode, SYM_L_GLOBAL)
 
 tuLab:
   /* Preserve rax */
-  pushq %rax
-  pushq %r11
-  pushq %r10
+  pushq %rax
+  pushq %rcx
+  pushq %rdx
+  pushq %rsi
+  pushq %rdi
+  pushq %r8
+  pushq %r9
+  pushq %r10
+  pushq %r11
+
   /* This reads elevated flag out of current task struct... for now. */
 
   call magic_check_elevate
   /* Bitwise and */
   testb  $0x1, %al
 
-  popq %r10
   popq %r11
-  popq %rax
+  popq %r10
+  popq %r9
+  popq %r8
+  popq %rdi
+  popq %rsi
+  popq %rdx
+  popq %rcx
+  popq %rax
 
   /*Jump if not zero ZF=0*/
   jnz     tu_set_kern_cs

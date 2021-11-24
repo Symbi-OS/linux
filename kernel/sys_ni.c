@@ -185,6 +185,7 @@ COND_SYSCALL(setfsuid);
 COND_SYSCALL(setfsgid);
 COND_SYSCALL(setgroups);
 COND_SYSCALL(getgroups);
+/* COND_SYSCALL(elevate); */
 
 /* kernel/time.c */
 

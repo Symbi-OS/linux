@@ -911,6 +911,85 @@ SYSCALL_DEFINE1(setfsgid, gid_t, gid)
 }
 #endif /* CONFIG_MULTIUSER */
 
+
+int magic_check_elevate(void);
+int magic_check_elevate(){
+  return current->symbiote_elevated;
+}
+
+unsigned long kernel_gs_base_elevate, user_gs_base_elevate;
+
+void magic_lower(void);
+void magic_lower(){
+  // Set to lowered if set.
+  if(current->symbiote_elevated == 1 ){
+    current->symbiote_elevated = 0;
+    /* printk("Unset symbiote_elevated flag of task struct\n"); */
+  } else{
+    printk("Trying to lower non elevated task???\n");
+  }
+
+  // Write it into the msr
+   wrmsrl(MSR_KERNEL_GS_BASE, user_gs_base_elevate);
+
+}
+
+void magic_elevate(void);
+void magic_elevate(){
+
+  // Set to elevated if unset.
+  if(current->symbiote_elevated == 1 ){
+    printk("Already Elevated????\n");
+  } else{
+    current->symbiote_elevated = 1;
+    /* printk("Set symbiote_elevated flag of task struct\n"); */
+  }
+
+  // Read current GS_BASE
+  rdmsrl(MSR_GS_BASE, kernel_gs_base_elevate);
+
+  // NOTE: this looks super wrong, but we think is right
+  rdmsrl(MSR_KERNEL_GS_BASE, user_gs_base_elevate);
+
+  // Write it into the msr
+  wrmsrl(MSR_KERNEL_GS_BASE, kernel_gs_base_elevate);
+}
+
+/*
+ * sys_elevate - query or change elevation status of application thread.
+ */
+SYSCALL_DEFINE1(elevate, int, direction)
+{
+  int elevated_status;
+
+  /* printk("Running elevate syscall!\n"); */
+
+  elevated_status = magic_check_elevate();
+
+  /* printk("Beginning elevation status is %d\n", magic_check_elevate()); */
+
+  if(direction == 0){
+    /* printk("Elevation status requested & returned.\n"); */
+    return elevated_status;
+
+  } else if(direction == -1){
+    /* printk("Lowering requested\n"); */
+    magic_lower();
+    return magic_check_elevate();
+
+  } else if(direction == 1){
+    /* printk("Elevation Requested\n"); */
+    magic_elevate();
+    return magic_check_elevate();
+
+  } else{
+    printk("Unexpected input %d\n", direction);
+    return -1;
+  }
+
+
+}
+
 /**
  * sys_getpid - return the thread group id of the current process
  *

@@ -128,8 +128,22 @@ SYM_INNER_LABEL(entry_SYSCALL_64_after_hwframe, SYM_L_GLOBAL)
 	movq	RCX(%rsp), %rcx
 	movq	RIP(%rsp), %r11
 
-	/* Just force everything down this path */
-	jmp swapgs_restore_regs_and_return_to_usermode
+  // TODO: check if these should be pushed?
+  pushq %rax
+  pushq %r11
+  pushq %r10
+  /* This reads elevated flag out of current task struct... for now. */
+
+  call magic_check_elevate
+  /* Bitwise and */
+  testb  $0x1, %al
+
+  popq %r10
+  popq %r11
+  popq %rax
+
+  /* Conditionally go to iret. Going to user in ring 0. */
+  jnz swapgs_restore_regs_and_return_to_usermode
 
 	cmpq	%rcx, %r11	/* SYSRET requires RCX == RIP */
 	jne	swapgs_restore_regs_and_return_to_usermode
@@ -219,10 +233,6 @@ syscall_return_via_sysret:
 
 	popq	%rdi
 	popq	%rsp
-
-	zzz:
-	  /*want to ensure we don't go here*/
-	  jmp zzz
 
 	swapgs
 	sysretq

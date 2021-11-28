@@ -413,32 +413,32 @@ bad:
  * Note we only handle faults in kernel here.
  * Does nothing on 32-bit.
  */
-static int is_errata93(struct pt_regs *regs, unsigned long address)
-{
-#if defined(CONFIG_X86_64) && defined(CONFIG_CPU_SUP_AMD)
-	if (boot_cpu_data.x86_vendor != X86_VENDOR_AMD
-	    || boot_cpu_data.x86 != 0xf)
-		return 0;
+/* static int is_errata93(struct pt_regs *regs, unsigned long address) */
+/* { */
+/* #if defined(CONFIG_X86_64) && defined(CONFIG_CPU_SUP_AMD) */
+/* 	if (boot_cpu_data.x86_vendor != X86_VENDOR_AMD */
+/* 	    || boot_cpu_data.x86 != 0xf) */
+/* 		return 0; */
 
-	if (user_mode(regs))
-		return 0;
+/* 	if (user_mode(regs)) */
+/* 		return 0; */
 
-	if (address != regs->ip)
-		return 0;
+/* 	if (address != regs->ip) */
+/* 		return 0; */
 
-	if ((address >> 32) != 0)
-		return 0;
+/* 	if ((address >> 32) != 0) */
+/* 		return 0; */
 
-	address |= 0xffffffffUL << 32;
-	if ((address >= (u64)_stext && address <= (u64)_etext) ||
-	    (address >= MODULES_VADDR && address <= MODULES_END)) {
-		printk_once(errata93_warning);
-		regs->ip = address;
-		return 1;
-	}
-#endif
-	return 0;
-}
+/* 	address |= 0xffffffffUL << 32; */
+/* 	if ((address >= (u64)_stext && address <= (u64)_etext) || */
+/* 	    (address >= MODULES_VADDR && address <= MODULES_END)) { */
+/* 		printk_once(errata93_warning); */
+/* 		regs->ip = address; */
+/* 		return 1; */
+/* 	} */
+/* #endif */
+/* 	return 0; */
+/* } */
 
 /*
  * Work around K8 erratum #100 K8 in compat mode occasionally jumps
@@ -1223,20 +1223,20 @@ void do_user_addr_fault(struct pt_regs *regs,
 	tsk = current;
 	mm = tsk->mm;
 
-	if (unlikely((error_code & (X86_PF_USER | X86_PF_INSTR)) == X86_PF_INSTR)) {
-		/*
-		 * Whoops, this is kernel mode code trying to execute from
-		 * user memory.  Unless this is AMD erratum #93, which
-		 * corrupts RIP such that it looks like a user address,
-		 * this is unrecoverable.  Don't even try to look up the
-		 * VMA or look for extable entries.
-		 */
-		if (is_errata93(regs, address))
-			return;
+	/* if (unlikely((error_code & (X86_PF_USER | X86_PF_INSTR)) == X86_PF_INSTR)) { */
+	/* 	/\* */
+	/* 	 * Whoops, this is kernel mode code trying to execute from */
+	/* 	 * user memory.  Unless this is AMD erratum #93, which */
+	/* 	 * corrupts RIP such that it looks like a user address, */
+	/* 	 * this is unrecoverable.  Don't even try to look up the */
+	/* 	 * VMA or look for extable entries. */
+	/* 	 *\/ */
+	/* 	if (is_errata93(regs, address)) */
+	/* 		return; */
 
-		page_fault_oops(regs, error_code, address);
-		return;
-	}
+	/* 	page_fault_oops(regs, error_code, address); */
+	/* 	return; */
+	/* } */
 
 	/* kprobes don't want to hook the spurious faults: */
 	if (WARN_ON_ONCE(kprobe_page_fault(regs, X86_TRAP_PF)))

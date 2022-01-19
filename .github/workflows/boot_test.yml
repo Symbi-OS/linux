@@ -1,0 +1,65 @@
+name: Symbiote Boot Test
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the clean-sym-5.14 branch
+  push:
+    branches: [ clean-sym-5.14 ]
+  pull_request:
+    branches: [ clean-sym-5.14 ]
+
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+
+  SYMBIOTE_BOOT_TEST:
+  
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    steps:
+          
+      #Checkout Symbiote Linux repo - branch 5.14      
+      - name: Checkout symbiote linux repo
+        uses: actions/checkout@v2
+        with:
+            repository: like101101/linux
+            ref: clean-sym-5.14
+            path: linux
+      
+      # Installs required packages for build
+      - name: Update and install package requirements
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install git build-essential flex bison libelf-dev libssl-dev texinfo libgmp3-dev libmpc-dev libmpfr-dev qemu-kvm supermin 
+          
+        
+       # Checks-out Min-initrd
+      - name: Checkout min-initrd directory
+        uses: actions/checkout@v2
+        with:
+          repository: like101101/min-initrd
+          path: min-initrd
+          
+      #Compile the kernel
+      - name: Compile the kernel
+        run: |
+          make -C linux defconfig
+          make -C linux -j$(nproc)
+          
+      # Boot the Kernel
+      - name: Compile min-initrd
+        run: |  
+          cd min-initrd 
+          make build-package
+          make supermin
+          make all
+          
+      # Boot the Kernel
+      - name: Boot the kernel
+        run: |
+          cd min-initrd
+          make runU2

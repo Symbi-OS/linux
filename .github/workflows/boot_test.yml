@@ -25,7 +25,7 @@ jobs:
       - name: Checkout symbiote linux repo
         uses: actions/checkout@v2
         with:
-            repository: like101101/linux
+            repository: Symbi-OS/linux
             ref: clean-sym-5.14
             path: linux
       
@@ -41,7 +41,7 @@ jobs:
       - name: Checkout min-initrd directory
         uses: actions/checkout@v2
         with:
-          repository: like101101/min-initrd
+          repository: Symbi-OS/min-initrd
           path: min-initrd
           
       #Compile the kernel

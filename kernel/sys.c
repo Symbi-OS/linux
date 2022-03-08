@@ -910,6 +910,11 @@ SYSCALL_DEFINE1(setfsgid, gid_t, gid)
 	return __sys_setfsgid(gid);
 }
 #endif /* CONFIG_MULTIUSER */
+SYSCALL_DEFINE0(mycall)
+{
+        printk(KERN_INFO "say hello to my little syscall\n");
+        return 0;
+}
 
 /**
  * sys_getpid - return the thread group id of the current process

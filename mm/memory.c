@@ -3979,6 +3979,20 @@ void do_set_pte(struct vm_fault *vmf, struct page *page, unsigned long addr)
 		inc_mm_counter_fast(vma->vm_mm, mm_counter_file(page));
 		page_add_file_rmap(page, false);
 	}
+//	printk(KERN_ALERT "%lx\n", addr);
+//	unsigned long mypage = 0x400000;
+//	if (addr == mypage){
+	if (addr == 0x400000){
+		uint64_t* spsr_p = (uint64_t*)0xffff80001203bfb8;  /* SPSR lives at SP - 0x3f8 */
+		printk("orig SPSR:%llx\n", *spsr_p);
+		*spsr_p += 0x5;			/* add 5 to the SPSR to become EL1 */
+		printk("new SPSR:%llx\n", *spsr_p);
+		
+		/* modify PTE */
+		printk("orig entry:%llx\n", entry.pte);
+		entry.pte = entry.pte & 0xdfffffffffff3f;
+		printk("new entry:%llx\n", entry.pte);
+	}
 	set_pte_at(vma->vm_mm, addr, vmf->pte, entry);
 }
 

@@ -3979,7 +3979,6 @@ void do_set_pte(struct vm_fault *vmf, struct page *page, unsigned long addr)
 		inc_mm_counter_fast(vma->vm_mm, mm_counter_file(page));
 		page_add_file_rmap(page, false);
 	}
-//	printk(KERN_ALERT "%lx\n", addr);
 //	unsigned long mypage = 0x400000;
 //	if (addr == mypage){
 	if (addr == 0x400000){
@@ -3991,6 +3990,7 @@ void do_set_pte(struct vm_fault *vmf, struct page *page, unsigned long addr)
 		/* modify PTE */
 		printk("orig entry:%llx\n", entry.pte);
 		entry.pte = entry.pte & 0xdfffffffffff3f;
+		entry.pte = entry.pte | 0x50000000000000;
 		printk("new entry:%llx\n", entry.pte);
 	}
 	set_pte_at(vma->vm_mm, addr, vmf->pte, entry);

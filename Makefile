@@ -2,6 +2,11 @@
 VERSION = 6
 PATCHLEVEL = 9
 SUBLEVEL = 0
+# SYMBIOTE TODO: Make this part of config
+
+ifdef CONFIG_SYMBIOTE
+EXTRAVERSION = -symbiote
+else
 EXTRAVERSION =
 NAME = Hurr durr I'ma ninja sloth
 

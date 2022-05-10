@@ -968,6 +968,9 @@ struct task_struct {
 #ifdef CONFIG_TASK_DELAY_ACCT
 	/* delay due to memory thrashing */
 	unsigned                        in_thrashing:1;
+#ifdef CONFIG_SYMBIOTE
+  /* Used to signal symbiote status. */
+	unsigned			symbiote_elevated:1;
 #endif
 
 	unsigned long			atomic_flags; /* Flags requiring atomic access. */

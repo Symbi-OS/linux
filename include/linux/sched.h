@@ -863,6 +863,10 @@ struct task_struct {
 	/* Used by page_owner=on to detect recursion in page tracking. */
 	unsigned			in_page_owner:1;
 #endif
+#ifdef CONFIG_SYMBIOTE
+  /* Used to signal symbiote status. */
+	unsigned			symbiote_elevated:1;
+#endif
 
 	unsigned long			atomic_flags; /* Flags requiring atomic access. */
 

@@ -122,6 +122,15 @@ SYM_INNER_LABEL(entry_SYSCALL_64_after_hwframe, SYM_L_GLOBAL)
 	ALTERNATIVE "", "jmp	swapgs_restore_regs_and_return_to_usermode", \
 		X86_FEATURE_XENPV
 
+#ifdef CONFIG_SYMBIOTE
+  /* Check elevation status. */
+	pushq	%rax
+	call	symbi_check_elevate
+	testb	$0x1, %al
+	popq	%rax
+	jnz	swapgs_restore_regs_and_return_to_usermode
+#endif
+
 	movq	RCX(%rsp), %rcx
 	movq	RIP(%rsp), %r11
 

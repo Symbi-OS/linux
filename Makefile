@@ -2,7 +2,13 @@
 VERSION = 5
 PATCHLEVEL = 14
 SUBLEVEL = 0
+# SYMBIOTE TODO: Make this part of config
+
+ifdef CONFIG_SYMBIOTE
+EXTRAVERSION = -symbiote
+else
 EXTRAVERSION =
+endif
 NAME = Opossums on Parade
 
 # *DOCUMENTATION*

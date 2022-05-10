@@ -1045,11 +1045,13 @@ void symbi_debug_entry(struct pt_regs *regs, struct SymbiReg *sreg){
   printk("User reg state inbound\n");
   symbi_print_user_reg_state(regs);
 }
+#endif
 
 // Returns elevation status: 1-elevated 0-lowered.
 // Returns -1 on incorrect input.
 SYSCALL_DEFINE1(elevate, unsigned long, flags)
 {
+#ifdef CONFIG_SYMBIOTE
   struct pt_regs *regs;
 
   /* local_irq_disable(); */
@@ -1086,8 +1088,10 @@ SYSCALL_DEFINE1(elevate, unsigned long, flags)
     printk("Abt to ret from elevate syscall\n");
   }
   return symbi_check_elevate();
-}
+#else
+  return -ENOSYS;
 #endif
+}
 
 /**
  * sys_getpid - return the thread group id of the current process

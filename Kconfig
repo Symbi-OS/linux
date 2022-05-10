@@ -32,3 +32,9 @@ source "lib/Kconfig.debug"
 source "Documentation/Kconfig"
 
 source "io_uring/Kconfig"
+
+config SYMBIOTE
+       bool "Symbiote Linux"
+       def_bool y
+       help
+        Turn on Symbiote mode. Adds a syscal "elevate". Very dangerous...

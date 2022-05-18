@@ -3959,24 +3959,28 @@ void do_set_pte(struct vm_fault *vmf, struct page *page, unsigned long addr)
 	bool write = vmf->flags & FAULT_FLAG_WRITE;
 	bool prefault = vmf->address != addr;
 	pte_t entry;
-	uint64_t* spsr_p;
-	uint64_t* elr_p;
+	uint64_t* pgd_ptr;
+	uint64_t* pud_ptr;
+	uint64_t* p4d_ptr;
+	uint64_t* pmd_ptr;
+
+	/* uint64_t* spsr_p; */
+	/* uint64_t* elr_p; */
 
 	flush_icache_page(vma, page);
 	if (addr == 0x400000){
 		printk("original pgprot: %llx\n", vma->vm_page_prot.pgprot);
 		/* vma->vm_page_prot = __pgprot((vma->vm_page_prot.pgprot & ~PTE_PXN)); */
-		/* vma->vm_page_prot = __pgprot(_PAGE_DEFAULT & ~PTE_USER & ~PTE_RDONLY & ~PTE_NG & ~PTE_PXN & ~PTE_UXN & ~PTE_CONT); */
-		vma->vm_page_prot = PAGE_KERNEL_EXEC;
+		/* vma->vm_page_prot = PAGE_KERNEL_EXEC; */
+		vma->vm_page_prot = __pgprot((PROT_NORMAL & ~(PTE_WRITE | PTE_PXN)) | PTE_UXN | PTE_RDONLY);
 		printk("new pgprot: %llx\n", vma->vm_page_prot.pgprot);
 		entry = mk_pte(page, vma->vm_page_prot);
-		/* entry = mk_pte(page, PAGE_NONE); */
-		spsr_p = (uint64_t*)0xffff80001203bfb8;
-		elr_p = (uint64_t*)0xffff80001203bfb0;
-		printk("orig SPSR:%llx\n", *spsr_p);
-		*spsr_p += 0x5;
-		*elr_p = 0xffff8000116c3b58;
-		printk("new SPSR:%llx\n", *spsr_p);
+		/* spsr_p = (uint64_t*)0xffff80001203bfb8; */
+		/* elr_p = (uint64_t*)0xffff80001203bfb0; */
+		/* printk("orig SPSR:%llx\n", *spsr_p); */
+		/* *spsr_p += 0x5; */
+		/* *elr_p = 0x0000800010a6fea8; */
+		/* printk("new SPSR:%llx\n", *spsr_p); */
 	}
 	else {
 		entry = mk_pte(page, vma->vm_page_prot);
@@ -3997,24 +4001,12 @@ void do_set_pte(struct vm_fault *vmf, struct page *page, unsigned long addr)
 		inc_mm_counter_fast(vma->vm_mm, mm_counter_file(page));
 		page_add_file_rmap(page, false);
 	}
-/* //	unsigned long mypage = 0x400000; */
-/* //	if (addr == mypage){ */
-/* 	if (addr == 0x400000){ */
-/* 		uint64_t* spsr_p = (uint64_t*)0xffff80001203bfb8;  /\* SPSR lives at SP - 0x3f8 *\/ */
-/* 		printk("orig SPSR:%llx\n", *spsr_p); */
-/* 		*spsr_p += 0x5;			/\* add 5 to the SPSR to become EL1 *\/ */
-/* 		printk("new SPSR:%llx\n", *spsr_p); */
-
-/* 		/\* modify PTE *\/ */
-/* 		printk("orig entry:%llx\n", entry.pte); */
-/* 		entry.pte = entry.pte & 0xdfffffffffff3f; */
-/* 		entry.pte = entry.pte | 0x50000000000000; */
-/* 		printk("new entry:%llx\n", entry.pte); */
-/* 	} */
 	set_pte_at(vma->vm_mm, addr, vmf->pte, entry);
 	/* if (addr == 0x400000){ */
-	/* 	dsb(ishst); */
-    /*     isb(); */
+	/* 	u64 ttbr1 = read_sysreg(ttbr1_el1); */
+	/* 	write_sysreg(ttbr1, ttbr0_el1); */
+	/* 	isb(); */
+	/* 	flush_tlb_all(); */
 	/* } */
 }
 

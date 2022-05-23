@@ -128,7 +128,8 @@ SYM_INNER_LABEL(entry_SYSCALL_64_after_hwframe, SYM_L_GLOBAL)
 	call	symbi_check_elevate
 	testb	$0x1, %al
 	popq	%rax
-	jnz	swapgs_restore_regs_and_return_to_usermode
+	/* jnz	symbi_swapgs_restore_regs_and_return_to_usermode_iret */
+	jnz	symbi_swapgs_restore_regs_and_return_to_usermode_ret
 #endif
 
 	movq	RCX(%rsp), %rcx
@@ -616,6 +617,99 @@ SYM_INNER_LABEL(swapgs_restore_regs_and_return_to_usermode, SYM_L_GLOBAL)
 	SWAPGS
 	INTERRUPT_RETURN
 
+SYM_INNER_LABEL(symbi_swapgs_restore_regs_and_return_to_usermode_iret, SYM_L_GLOBAL)
+#ifdef CONFIG_DEBUG_ENTRY
+	/* Assert that pt_regs indicates user mode. */
+	testb	$3, CS(%rsp)
+	jnz	1f
+	ud2
+1:
+#endif
+	POP_REGS pop_rdi=0
+
+	/*
+	 * The stack is now user RDI, orig_ax, RIP, CS, EFLAGS, RSP, SS.
+	 * Save old stack pointer and switch to trampoline stack.
+	 */
+	movq	%rsp, %rdi
+	movq	PER_CPU_VAR(cpu_tss_rw + TSS_sp0), %rsp
+	UNWIND_HINT_EMPTY
+
+	/* Copy the IRET frame to the trampoline stack. */
+	pushq	$__KERNEL_DS	/* SS */
+	pushq	5*8(%rdi)	/* RSP */
+	pushq	4*8(%rdi)	/* EFLAGS */
+	pushq	$__KERNEL_CS	/* CS */
+	pushq	2*8(%rdi)	/* RIP */
+
+	/* Push user RDI on the trampoline stack. */
+	pushq	(%rdi)
+
+	/*
+	 * We are on the trampoline stack.  All regs except RDI are live.
+	 * We can do future final exit work right here.
+	 */
+	STACKLEAK_ERASE_NOCLOBBER
+
+	SWITCH_TO_USER_CR3_STACK scratch_reg=%rdi
+
+	/* Restore RDI. */
+	popq	%rdi
+	SWAPGS
+	INTERRUPT_RETURN
+
+SYM_INNER_LABEL(symbi_swapgs_restore_regs_and_return_to_usermode_ret, SYM_L_GLOBAL)
+#ifdef CONFIG_DEBUG_ENTRY
+	/* Assert that pt_regs indicates user mode. */
+	testb	$3, CS(%rsp)
+	jnz	1f
+	ud2
+1:
+#endif
+	movq	RIP(%rsp), %r15 /* return address in r15 */
+	movq	RSP(%rsp), %r14	 /* user stack in r14 */
+	subq	$0x10, %r14
+	movq	%r15, 8(%r14)
+	movq	EFLAGS(%rsp), %r15 /* EFLAGS in r15 */
+	movq	%r15, (%r14)
+	movq	%r14, RSP(%rsp)
+
+	POP_REGS pop_rdi=0
+
+	/*
+	 * The stack is now user RDI, orig_ax, RIP, CS, EFLAGS, RSP, SS.
+	 * Save old stack pointer and switch to trampoline stack.
+	 */
+	movq	%rsp, %rdi
+	movq	PER_CPU_VAR(cpu_tss_rw + TSS_sp0), %rsp
+	UNWIND_HINT_EMPTY
+
+	/* Copy the IRET frame to the trampoline stack. */
+	pushq	$__KERNEL_DS	/* SS */
+	pushq	5*8(%rdi)	/* RSP */
+	pushq	4*8(%rdi)	/* EFLAGS */
+	pushq	$__KERNEL_CS	/* CS */
+	pushq	2*8(%rdi)	/* RIP */
+
+	/* Push user RDI on the trampoline stack. */
+	pushq	(%rdi)
+
+	/*
+	 * We are on the trampoline stack.  All regs except RDI are live.
+	 * We can do future final exit work right here.
+	 */
+	STACKLEAK_ERASE_NOCLOBBER
+
+	SWITCH_TO_USER_CR3_STACK scratch_reg=%rdi
+
+	/* Restore RDI. */
+	popq	%rdi
+	SWAPGS
+
+	/* Swing to user stack and pop flags */
+	movq 0x18(%rsp), %rsp
+	popfq
+	retq
 
 SYM_INNER_LABEL(restore_regs_and_return_to_kernel, SYM_L_GLOBAL)
 #ifdef CONFIG_DEBUG_ENTRY

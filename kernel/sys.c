@@ -917,11 +917,14 @@ struct SymbiReg {
   union {
     uint64_t raw;
     struct {
-      uint64_t elevate : 1;
-      uint64_t query : 1;
-      uint64_t int_disable : 1;
-      uint64_t debug : 1;
-
+      uint64_t elevate     : 1; // Bit 0
+      uint64_t query       : 1; // Bit 1
+      uint64_t int_disable : 1; // Bit 2
+      uint64_t debug       : 2; // Bit 3-4
+      uint64_t no_smep     : 1; // Bit 5
+      uint64_t no_smap     : 1; // Bit 6
+      uint64_t ret         : 1; // Bit 7
+      uint64_t fast_lower  : 1; // Bit 8
     };
   };
 }__attribute__((packed));
@@ -1003,9 +1006,42 @@ void symbi_debug_entry(struct pt_regs *regs, struct SymbiReg *sreg){
     printk("Error\n");
   }
 
+  printk("Debug level is %d", sreg->debug);
+  if(sreg->int_disable){
+    printk("Return with interrupts disabled\n");
+  }
+
+  if(sreg->no_smep){
+    printk("Return with SMEP disabled\n");
+  } else {
+    printk("Return with SMEP enabled\n");
+  }
+
+  if(sreg->no_smap){
+    printk("Return with SMAP disabled\n");
+  } else {
+    printk("Return with SMAP enabled\n");
+  }
+
+  if(sreg->ret){
+    printk("Return using ret instead of iret (switch NYI)\n");
+  } else{
+    printk("Return using iret instead of ret (switch NYI)\n");
+  }
+
+  if(sreg->fast_lower){
+    printk("Should not have gotten to syscall on fast lower\n");
+    printk("Shortcut this in symbi lib\n");
+    while(1);
+  }else{
+    printk("Return using slow syscall-sysret lower\n");
+  }
+
   printk("Was user elevated? %llx", symbi_check_elevate());
   printk("Syscall passed flags: %#llx\n", sreg->raw);
   printk("db: %x id: %x q: %x e: %x\n", sreg->debug, sreg->int_disable, sreg->query, sreg->elevate);
+
+  printk("fl: %x ret: %x nosmap: %x nosmep: %x\n", sreg->fast_lower, sreg->ret, sreg->no_smap, sreg->no_smep);
 
   printk("User reg state inbound\n");
   symbi_print_user_reg_state(regs);

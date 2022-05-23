@@ -130,6 +130,78 @@ SYM_INNER_LABEL(entry_SYSCALL_64_after_hwframe, SYM_L_GLOBAL)
 	ALTERNATIVE "testb %al, %al; jz swapgs_restore_regs_and_return_to_usermode", \
 		"jmp swapgs_restore_regs_and_return_to_usermode", X86_FEATURE_XENPV
 
+#ifdef CONFIG_SYMBIOTE
+  /* Check elevation status. */
+	pushq	%rax
+	call	symbi_check_elevate
+	testb	$0x1, %al
+	popq	%rax
+	/* jnz	symbi_swapgs_restore_regs_and_return_to_usermode_iret */
+	jnz	symbi_swapgs_restore_regs_and_return_to_usermode_ret
+#endif
+
+	movq	RCX(%rsp), %rcx
+	movq	RIP(%rsp), %r11
+
+	cmpq	%rcx, %r11	/* SYSRET requires RCX == RIP */
+	jne	swapgs_restore_regs_and_return_to_usermode
+
+	/*
+	 * On Intel CPUs, SYSRET with non-canonical RCX/RIP will #GP
+	 * in kernel space.  This essentially lets the user take over
+	 * the kernel, since userspace controls RSP.
+	 *
+	 * If width of "canonical tail" ever becomes variable, this will need
+	 * to be updated to remain correct on both old and new CPUs.
+	 *
+	 * Change top bits to match most significant bit (47th or 56th bit
+	 * depending on paging mode) in the address.
+	 */
+#ifdef CONFIG_X86_5LEVEL
+	ALTERNATIVE "shl $(64 - 48), %rcx; sar $(64 - 48), %rcx", \
+		"shl $(64 - 57), %rcx; sar $(64 - 57), %rcx", X86_FEATURE_LA57
+#else
+	shl	$(64 - (__VIRTUAL_MASK_SHIFT+1)), %rcx
+	sar	$(64 - (__VIRTUAL_MASK_SHIFT+1)), %rcx
+#endif
+
+	/* If this changed %rcx, it was not canonical */
+	cmpq	%rcx, %r11
+	jne	swapgs_restore_regs_and_return_to_usermode
+
+	cmpq	$__USER_CS, CS(%rsp)		/* CS must match SYSRET */
+	jne	swapgs_restore_regs_and_return_to_usermode
+
+	movq	R11(%rsp), %r11
+	cmpq	%r11, EFLAGS(%rsp)		/* R11 == RFLAGS */
+	jne	swapgs_restore_regs_and_return_to_usermode
+
+	/*
+	 * SYSCALL clears RF when it saves RFLAGS in R11 and SYSRET cannot
+	 * restore RF properly. If the slowpath sets it for whatever reason, we
+	 * need to restore it correctly.
+	 *
+	 * SYSRET can restore TF, but unlike IRET, restoring TF results in a
+	 * trap from userspace immediately after SYSRET.  This would cause an
+	 * infinite loop whenever #DB happens with register state that satisfies
+	 * the opportunistic SYSRET conditions.  For example, single-stepping
+	 * this user code:
+	 *
+	 *           movq	$stuck_here, %rcx
+	 *           pushfq
+	 *           popq %r11
+	 *   stuck_here:
+	 *
+	 * would never get past 'stuck_here'.
+	 */
+	testq	$(X86_EFLAGS_RF|X86_EFLAGS_TF), %r11
+	jnz	swapgs_restore_regs_and_return_to_usermode
+
+	/* nothing to check for RSP */
+
+	cmpq	$__USER_DS, SS(%rsp)		/* SS must match SYSRET */
+	jne	swapgs_restore_regs_and_return_to_usermode
+
 	/*
 	 * We win! This label is here just for ease of understanding
 	 * perf profiles. Nothing jumps here.
@@ -615,6 +687,100 @@ SYM_INNER_LABEL(swapgs_restore_regs_and_return_to_usermode, SYM_L_GLOBAL)
 	popq	%rdi
 	jmp	.Lswapgs_and_iret
 #endif
+
+SYM_INNER_LABEL(symbi_swapgs_restore_regs_and_return_to_usermode_iret, SYM_L_GLOBAL)
+#ifdef CONFIG_DEBUG_ENTRY
+	/* Assert that pt_regs indicates user mode. */
+	testb	$3, CS(%rsp)
+	jnz	1f
+	ud2
+1:
+#endif
+	POP_REGS pop_rdi=0
+
+	/*
+	 * The stack is now user RDI, orig_ax, RIP, CS, EFLAGS, RSP, SS.
+	 * Save old stack pointer and switch to trampoline stack.
+	 */
+	movq	%rsp, %rdi
+	movq	PER_CPU_VAR(cpu_tss_rw + TSS_sp0), %rsp
+	UNWIND_HINT_EMPTY
+
+	/* Copy the IRET frame to the trampoline stack. */
+	pushq	$__KERNEL_DS	/* SS */
+	pushq	5*8(%rdi)	/* RSP */
+	pushq	4*8(%rdi)	/* EFLAGS */
+	pushq	$__KERNEL_CS	/* CS */
+	pushq	2*8(%rdi)	/* RIP */
+
+	/* Push user RDI on the trampoline stack. */
+	pushq	(%rdi)
+
+	/*
+	 * We are on the trampoline stack.  All regs except RDI are live.
+	 * We can do future final exit work right here.
+	 */
+	STACKLEAK_ERASE_NOCLOBBER
+
+	SWITCH_TO_USER_CR3_STACK scratch_reg=%rdi
+
+	/* Restore RDI. */
+	popq	%rdi
+	SWAPGS
+	INTERRUPT_RETURN
+
+SYM_INNER_LABEL(symbi_swapgs_restore_regs_and_return_to_usermode_ret, SYM_L_GLOBAL)
+#ifdef CONFIG_DEBUG_ENTRY
+	/* Assert that pt_regs indicates user mode. */
+	testb	$3, CS(%rsp)
+	jnz	1f
+	ud2
+1:
+#endif
+	movq	RIP(%rsp), %r15 /* return address in r15 */
+	movq	RSP(%rsp), %r14	 /* user stack in r14 */
+	subq	$0x10, %r14
+	movq	%r15, 8(%r14)
+	movq	EFLAGS(%rsp), %r15 /* EFLAGS in r15 */
+	movq	%r15, (%r14)
+	movq	%r14, RSP(%rsp)
+
+	POP_REGS pop_rdi=0
+
+	/*
+	 * The stack is now user RDI, orig_ax, RIP, CS, EFLAGS, RSP, SS.
+	 * Save old stack pointer and switch to trampoline stack.
+	 */
+	movq	%rsp, %rdi
+	movq	PER_CPU_VAR(cpu_tss_rw + TSS_sp0), %rsp
+	UNWIND_HINT_EMPTY
+
+	/* Copy the IRET frame to the trampoline stack. */
+	pushq	$__KERNEL_DS	/* SS */
+	pushq	5*8(%rdi)	/* RSP */
+	pushq	4*8(%rdi)	/* EFLAGS */
+	pushq	$__KERNEL_CS	/* CS */
+	pushq	2*8(%rdi)	/* RIP */
+
+	/* Push user RDI on the trampoline stack. */
+	pushq	(%rdi)
+
+	/*
+	 * We are on the trampoline stack.  All regs except RDI are live.
+	 * We can do future final exit work right here.
+	 */
+	STACKLEAK_ERASE_NOCLOBBER
+
+	SWITCH_TO_USER_CR3_STACK scratch_reg=%rdi
+
+	/* Restore RDI. */
+	popq	%rdi
+	SWAPGS
+
+	/* Swing to user stack and pop flags */
+	movq 0x18(%rsp), %rsp
+	popfq
+	retq
 
 SYM_INNER_LABEL(restore_regs_and_return_to_kernel, SYM_L_GLOBAL)
 #ifdef CONFIG_DEBUG_ENTRY

@@ -1007,6 +1007,65 @@ void symbi_lower(struct pt_regs* regs, struct SymbiReg* sreg){
   BUG_ON(regs->cs != 0x33);
   BUG_ON(regs->ss != 0x2b);
 }
+#include "asm/tlbflush.h"
+void symbi_toggle_nosmap(int direction){
+  // 1: disable smap
+  // 0: enable smap
+  uint64_t cr4;
+  uint64_t x86_CR4_SMAP = 1 << 21; // XXX just trying the smap one
+
+  printk("symbi_toggle_nosmap direction is %d\n", direction);
+  __asm__("movq %%cr4,%0" : "=r"( cr4 ));
+  printk("cr4 was %llx\n", cr4);
+  // When this bit (21) is set, smap is enabled.
+  if(direction){
+    cr4 &= ~x86_CR4_SMAP;
+
+    /* printk("Attempt clearing bit %llx\n", x86_CR4_SMAP); */
+    /* cr4_clear_bits(x86_CR4_SMAP); */
+
+  }else{
+    cr4 |= x86_CR4_SMAP;
+    /*   printk("Attempt setting bit %llx\n", x86_CR4_SMAP); */
+    /* cr4_set_bits(x86_CR4_SMAP); */
+  }
+
+  printk("cr4 var is now %llx\n", cr4);
+
+	asm volatile("mov %0,%%cr4": "+r" (cr4) : : "memory");
+  /* __asm__("movq %%cr4,%0" : "=r"( cr4 )); */
+
+  __asm__("movq %%cr4,%0" : "=r"( cr4 ));
+  printk("cr4 reg is now %llx\n", cr4);
+
+
+  /* __asm__("movq %0, %%cr4" :: "r"( cr4 )); */
+
+}
+
+void symbi_toggle_nosmep(int direction){
+  // 1: disable smep
+  // 0: enable smep
+  uint64_t cr4;
+  uint64_t x86_CR4_SMEP = 1 << 20;
+
+  /* printk("symbi_toggle_nosmep direction is %d\n", direction); */
+  __asm__("movq %%cr4,%0" : "=r"( cr4 ));
+  /* printk("cr4 was %llx\n", cr4); */
+  // When this bit (21) is set, smep is enabled.
+  if(direction){
+    cr4 &= ~x86_CR4_SMEP;
+  }else{
+    cr4 |= x86_CR4_SMEP;
+  }
+  /* printk("cr4 var is now %llx\n", cr4); */
+  /* __asm__("movq %0, %%cr4" : : "r"( cr4 )); */
+	asm volatile("mov %0,%%cr4": "+r" (cr4) : : "memory");
+
+  /* __asm__("movq %%cr4,%0" : "=r"( cr4 )); */
+  /* printk("cr4 reg is now %llx\n", cr4); */
+
+}
 
 void symbi_elevate(struct pt_regs* regs, struct SymbiReg* sreg){
   // Swing symbiote reg
@@ -1117,6 +1176,10 @@ SYSCALL_DEFINE1(elevate, unsigned long, flags)
     symbi_print_user_reg_state(regs);
     return -1;
   }
+
+  /* symbi_toggle_nosmap(sreg.no_smap); */
+  symbi_toggle_nosmep(sreg.no_smep);
+
 
   if(sreg.debug){
     printk("Elevate bit now %llx", symbi_check_elevate());

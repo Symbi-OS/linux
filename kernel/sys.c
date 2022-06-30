@@ -1007,40 +1007,21 @@ void symbi_lower(struct pt_regs* regs, struct SymbiReg* sreg){
   BUG_ON(regs->cs != 0x33);
   BUG_ON(regs->ss != 0x2b);
 }
-#include "asm/tlbflush.h"
-void symbi_toggle_nosmap(int direction){
+
+// Something is prob broken in my inline assembly, don't know why normal optimization breaks...
+void __attribute__((optimize("O0"))) symbi_toggle_nosmap(int direction, struct SymbiReg* sreg){
   // 1: disable smap
   // 0: enable smap
   uint64_t cr4;
   uint64_t x86_CR4_SMAP = 1 << 21; // XXX just trying the smap one
 
-  printk("symbi_toggle_nosmap direction is %d\n", direction);
-  __asm__("movq %%cr4,%0" : "=r"( cr4 ));
-  printk("cr4 was %llx\n", cr4);
-  // When this bit (21) is set, smap is enabled.
+  asm volatile("movq %%cr4,%0" : "=r"( cr4 ));
   if(direction){
     cr4 &= ~x86_CR4_SMAP;
-
-    /* printk("Attempt clearing bit %llx\n", x86_CR4_SMAP); */
-    /* cr4_clear_bits(x86_CR4_SMAP); */
-
   }else{
     cr4 |= x86_CR4_SMAP;
-    /*   printk("Attempt setting bit %llx\n", x86_CR4_SMAP); */
-    /* cr4_set_bits(x86_CR4_SMAP); */
   }
-
-  printk("cr4 var is now %llx\n", cr4);
-
 	asm volatile("mov %0,%%cr4": "+r" (cr4) : : "memory");
-  /* __asm__("movq %%cr4,%0" : "=r"( cr4 )); */
-
-  __asm__("movq %%cr4,%0" : "=r"( cr4 ));
-  printk("cr4 reg is now %llx\n", cr4);
-
-
-  /* __asm__("movq %0, %%cr4" :: "r"( cr4 )); */
-
 }
 
 void symbi_toggle_nosmep(int direction){
@@ -1050,20 +1031,14 @@ void symbi_toggle_nosmep(int direction){
   uint64_t x86_CR4_SMEP = 1 << 20;
 
   /* printk("symbi_toggle_nosmep direction is %d\n", direction); */
-  __asm__("movq %%cr4,%0" : "=r"( cr4 ));
-  /* printk("cr4 was %llx\n", cr4); */
-  // When this bit (21) is set, smep is enabled.
+  asm volatile("movq %%cr4,%0" : "=r"( cr4 ));
+  // When this bit (20) is set, smep is enabled.
   if(direction){
     cr4 &= ~x86_CR4_SMEP;
   }else{
     cr4 |= x86_CR4_SMEP;
   }
-  /* printk("cr4 var is now %llx\n", cr4); */
-  /* __asm__("movq %0, %%cr4" : : "r"( cr4 )); */
 	asm volatile("mov %0,%%cr4": "+r" (cr4) : : "memory");
-
-  /* __asm__("movq %%cr4,%0" : "=r"( cr4 )); */
-  /* printk("cr4 reg is now %llx\n", cr4); */
 
 }
 
@@ -1177,7 +1152,7 @@ SYSCALL_DEFINE1(elevate, unsigned long, flags)
     return -1;
   }
 
-  /* symbi_toggle_nosmap(sreg.no_smap); */
+  symbi_toggle_nosmap(sreg.no_smap, &sreg);
   symbi_toggle_nosmep(sreg.no_smep);
 
 

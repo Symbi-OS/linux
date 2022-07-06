@@ -958,8 +958,10 @@ struct SymbiReg {
       uint64_t debug       : 2; // Bit 3-4
       uint64_t no_smep     : 1; // Bit 5
       uint64_t no_smap     : 1; // Bit 6
-      uint64_t ret         : 1; // Bit 7
-      uint64_t fast_lower  : 1; // Bit 8
+      uint64_t toggle_smep : 1; // Bit 7
+      uint64_t toggle_smap : 1; // Bit 8
+      uint64_t ret         : 1; // Bit 9
+      uint64_t fast_lower  : 1; // Bit 10
     };
   };
 }__attribute__((packed));
@@ -1152,8 +1154,12 @@ SYSCALL_DEFINE1(elevate, unsigned long, flags)
     return -1;
   }
 
-  symbi_toggle_nosmap(sreg.no_smap, &sreg);
-  symbi_toggle_nosmep(sreg.no_smep);
+  if(sreg.toggle_smap){
+    symbi_toggle_nosmap(sreg.no_smap, &sreg);
+  }
+  if(sreg.toggle_smep){
+    symbi_toggle_nosmep(sreg.no_smep);
+  }
 
 
   if(sreg.debug){

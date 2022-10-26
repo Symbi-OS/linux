@@ -910,10 +910,111 @@ SYSCALL_DEFINE1(setfsgid, gid_t, gid)
 	return __sys_setfsgid(gid);
 }
 #endif /* CONFIG_MULTIUSER */
-SYSCALL_DEFINE0(mycall)
+
+struct vm_area_struct* get_task_base_vma(struct task_struct* task) {
+    struct mm_struct* mm = task->mm;
+    return mm->mmap;
+}
+
+struct vm_area_struct* get_next_vma(struct vm_area_struct* vma) {
+    return vma->vm_next;
+}
+
+uint64_t get_task_vma_start(struct vm_area_struct* vma) {
+    return vma->vm_start;
+}
+
+uint64_t get_task_vma_end(struct vm_area_struct* vma) {
+    return vma->vm_end;
+}
+
+int unset_pxn_for_address(struct task_struct* task, uint64_t addr) {
+    struct mm_struct* task_mm;
+    pgd_t* pgd;
+    p4d_t* p4d;
+    pud_t* pud;
+    pmd_t* pmd;
+    pte_t* pte;
+
+    task_mm = task->mm;
+
+    pgd = pgd_offset(task_mm, addr);
+    if (pgd_none(*pgd) || pgd_bad(*pgd))
+        return 1;
+
+    p4d = p4d_offset(pgd, addr);
+    if (p4d_none(*p4d) || p4d_bad(*p4d))
+        return 1;
+    else
+		*p4d = __p4d(p4d_val(*p4d) & ~P4D_TABLE_PXN);
+
+    pud = pud_offset(p4d, addr);
+    if (pud_none(*pud) || pud_bad(*pud))
+        return 1;
+	else
+		*pud = __pud(pud_val(*pud) & ~PUD_TABLE_PXN);
+
+    pmd = pmd_offset(pud, addr);
+    if (pmd_none(*pmd) || pmd_bad(*pmd))
+        return 1;
+	else
+		*pmd = __pmd(pmd_val(*pmd) & ~(PMD_TABLE_PXN | PMD_SECT_PXN));
+
+    pte = pte_offset_kernel(pmd, addr);
+    if (!pte)
+        return 1;
+	else
+		*pte = __pte(pte_val(*pte) & ~PTE_PXN);
+    return 0;
+}
+
+void unset_process_pxn(void) {
+    void* vma = get_task_base_vma(current);
+    while (vma) {
+        uint64_t vm_start = get_task_vma_start(vma);
+        uint64_t vm_end = get_task_vma_end(vma);
+		uint64_t vmpage;
+
+        for (vmpage = vm_start; vmpage < vm_end; vmpage += PAGE_SIZE) {
+			unset_pxn_for_address(current, vmpage);
+        }
+
+        vma = get_next_vma(vma);
+    }
+}
+
+SYSCALL_DEFINE1(sym_mode_switch, unsigned int, direction)
 {
-        printk(KERN_INFO "say hello to my little syscall\n");
-        return 0;
+	uint64_t pstate;
+	uint64_t EL1_MASK = 0x4;
+	uint64_t EL0_MASK = 0x0;
+	struct pt_regs *regs;
+
+	regs = (struct pt_regs *)(current_pt_regs());
+
+	/*mask appropriate bits into saved PSTATE so when state is restored
+	 on return from syscall we will be elevated/lowered */
+	pstate = regs->pstate;
+	if (direction == 0){
+		pstate = pstate & EL0_MASK;
+		regs->pstate = pstate;
+		return 0;
+	}
+	else if (direction == 1){
+	pstate = pstate | EL1_MASK;
+	regs->pstate = pstate;
+
+	/*PXN bits are set at all page table levels for the user text page
+	 we are returning to. Use the saved user PC from pt_regs struct to
+	fix permissions for this page */
+	unset_pxn_for_address(current, regs->pc);
+	/*TODO: add check that PXN fix succeeds*/
+	return 0;
+	}
+	else {
+		/*TODO: add error message if direction is not 0 or 1*/
+		return 0;
+	}
 }
 
 /**

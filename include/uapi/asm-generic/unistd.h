@@ -878,8 +878,8 @@ __SYSCALL(__NR_landlock_restrict_self, sys_landlock_restrict_self)
 __SYSCALL(__NR_memfd_secret, sys_memfd_secret)
 #endif
 
-#define __NR_mycall 448
-__SYSCALL(__NR_mycall, sys_mycall)
+#define __NR_sym_mode_switch 448
+__SYSCALL(__NR_sym_mode_switch, sys_sym_mode_switch)
 
 #undef __NR_syscalls
 #define __NR_syscalls 449

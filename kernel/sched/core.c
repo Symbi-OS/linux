@@ -4644,6 +4644,19 @@ static __always_inline struct rq *
 context_switch(struct rq *rq, struct task_struct *prev,
 	       struct task_struct *next, struct rq_flags *rf)
 {
+	unsigned int is_thread_sym_elevated;
+	is_thread_sym_elevated = next->symbiote_elevated;
+
+    if (is_thread_sym_elevated) {
+		unsigned long long kernel_gs;
+    	asm("rdgsbase %0" : "=rm"(kernel_gs) : : "memory" );
+		
+		next->thread.gsbase = kernel_gs;
+
+		unsigned long gs_val = next->thread.gsbase;
+        printk("PID %d Thread scheduled to run on core %d with gsbase 0x%lx\n", task_pid_nr(next), task_cpu(next), gs_val);
+	}
+
 	prepare_task_switch(rq, prev, next);
 
 	/*
@@ -6016,6 +6029,7 @@ static void __sched notrace __schedule(bool preempt)
 		 *   is a RELEASE barrier),
 		 */
 		++*switch_count;
+
 
 		migrate_disable_switch(rq, prev);
 		psi_sched_switch(prev, next, !task_on_rq_queued(prev));

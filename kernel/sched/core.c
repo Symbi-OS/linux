@@ -4645,16 +4645,18 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	       struct task_struct *next, struct rq_flags *rf)
 {
 	unsigned int is_thread_sym_elevated;
+	unsigned int gs_low, gs_high;
+	unsigned long long kernel_gs;
+
 	is_thread_sym_elevated = next->symbiote_elevated;
 
     if (is_thread_sym_elevated) {
-		unsigned long long kernel_gs;
-    	asm("rdgsbase %0" : "=rm"(kernel_gs) : : "memory" );
-		
+		asm volatile("rdmsr" : "=a" (gs_low), "=d" (gs_high) : "c" (0xC0000101));
+		kernel_gs = ((unsigned long long)gs_high << 32) | gs_low;
+
 		next->thread.gsbase = kernel_gs;
 
-		unsigned long gs_val = next->thread.gsbase;
-        printk("PID %d Thread scheduled to run on core %d with gsbase 0x%lx\n", task_pid_nr(next), task_cpu(next), gs_val);
+        printk("PID %d Thread scheduled to run on core %d with gsbase 0x%lx\n", task_pid_nr(next), task_cpu(next), next->thread.gsbase);
 	}
 
 	prepare_task_switch(rq, prev, next);

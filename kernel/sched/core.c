@@ -4655,8 +4655,6 @@ context_switch(struct rq *rq, struct task_struct *prev,
 		kernel_gs = ((unsigned long long)gs_high << 32) | gs_low;
 
 		next->thread.gsbase = kernel_gs;
-
-        printk("PID %d Thread scheduled to run on core %d with gsbase 0x%lx\n", task_pid_nr(next), task_cpu(next), next->thread.gsbase);
 	}
 
 	prepare_task_switch(rq, prev, next);

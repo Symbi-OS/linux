@@ -4644,6 +4644,7 @@ static __always_inline struct rq *
 context_switch(struct rq *rq, struct task_struct *prev,
 	       struct task_struct *next, struct rq_flags *rf)
 {
+#ifdef CONFIG_SYMBIOTE
 	unsigned int is_thread_sym_elevated;
 	unsigned int gs_low, gs_high;
 	unsigned long long kernel_gs;
@@ -4656,6 +4657,7 @@ context_switch(struct rq *rq, struct task_struct *prev,
 
 		next->thread.gsbase = kernel_gs;
 	}
+#endif
 
 	prepare_task_switch(rq, prev, next);
 

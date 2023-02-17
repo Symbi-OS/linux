@@ -4645,16 +4645,34 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	       struct task_struct *next, struct rq_flags *rf)
 {
 #ifdef CONFIG_SYMBIOTE
-	unsigned int is_thread_sym_elevated;
+	// When symbiote threads are migrating to another core
+	// they require their gsbase to be updated to that of
+	// the target core, however due to the elevated nature
+	// of those threads, it doesn't happen automatically.
+	// The solution to this is to catch the thread here
+	// right before the context switches and update the
+	// upcoming task's gsbase accordingly for elevated threads.
+	//
+	// The assumption here is that this function would run on
+	// a target core and every time there is a context switch, and
+	// since the symbiote thread is already elevated, reading USERGS
+	// from MSR would give us the correct gsbase value for the target core.
+	//
+	// One possible optimization would be to run this code only when
+	// an elevated thread migrates onto a different core but for now
+	// doing this right before every context switch is sufficient.
+
 	unsigned int gs_low, gs_high;
 	unsigned long long kernel_gs;
 
-	is_thread_sym_elevated = next->symbiote_elevated;
-
-    if (is_thread_sym_elevated) {
+    if (next->symbiote_elevated) {
+		// Read the GSBASE value from the MSR
 		asm volatile("rdmsr" : "=a" (gs_low), "=d" (gs_high) : "c" (0xC0000101));
-		kernel_gs = ((unsigned long long)gs_high << 32) | gs_low;
+		
+		// Combine the gsbase low and high address values into a single 8 byte value
+		kernel_gs = (((unsigned long long)gs_high) << 32) | gs_low;
 
+		// Update the next task's gsbase value.
 		next->thread.gsbase = kernel_gs;
 	}
 #endif
@@ -6031,7 +6049,6 @@ static void __sched notrace __schedule(bool preempt)
 		 *   is a RELEASE barrier),
 		 */
 		++*switch_count;
-
 
 		migrate_disable_switch(rq, prev);
 		psi_sched_switch(prev, next, !task_on_rq_queued(prev));

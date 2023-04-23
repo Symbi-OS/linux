@@ -2541,7 +2541,7 @@ static struct rq *move_queued_task(struct rq *rq, struct rq_flags *rf,
 #ifdef CONFIG_SYMBIOTE
 	// Indicate that a symbiote thread has migrated cores in order
 	// to properly "fix" the gsbase value in context_switch() call.
-    if (p->symbiote_elevated && old_cpu != new_cpu) {
+    if (p->symbiote_elevated) {
 		p->symbiote_migrated = 1;
 	}
 #endif
@@ -5384,6 +5384,8 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	unsigned long long kernel_gs;
 
     if (next->symbiote_migrated) {
+		BUG_ON(smp_processor_id() == task_cpu(next));
+
 		// Read the GSBASE value from the MSR
 		asm volatile("rdmsr" : "=a" (gs_low), "=d" (gs_high) : "c" (0xC0000101));
 		

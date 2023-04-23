@@ -2520,6 +2520,11 @@ static inline bool is_cpu_allowed(struct task_struct *p, int cpu)
 static struct rq *move_queued_task(struct rq *rq, struct rq_flags *rf,
 				   struct task_struct *p, int new_cpu)
 {
+#ifdef CONFIG_SYMBIOTE
+	int old_cpu;
+	old_cpu = task_cpu(p);
+#endif
+
 	lockdep_assert_rq_held(rq);
 
 	deactivate_task(rq, p, DEQUEUE_NOCLOCK);
@@ -2532,6 +2537,14 @@ static struct rq *move_queued_task(struct rq *rq, struct rq_flags *rf,
 	WARN_ON_ONCE(task_cpu(p) != new_cpu);
 	activate_task(rq, p, 0);
 	wakeup_preempt(rq, p, 0);
+
+#ifdef CONFIG_SYMBIOTE
+	// Indicate that a symbiote thread has migrated cores in order
+	// to properly "fix" the gsbase value in context_switch() call.
+    if (p->symbiote_elevated && old_cpu != new_cpu) {
+		p->symbiote_migrated = 1;
+	}
+#endif
 
 	return rq;
 }
@@ -5366,15 +5379,11 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	// a target core and every time there is a context switch, and
 	// since the symbiote thread is already elevated, reading USERGS
 	// from MSR would give us the correct gsbase value for the target core.
-	//
-	// One possible optimization would be to run this code only when
-	// an elevated thread migrates onto a different core but for now
-	// doing this right before every context switch is sufficient.
 
 	unsigned int gs_low, gs_high;
 	unsigned long long kernel_gs;
 
-    if (next->symbiote_elevated) {
+    if (next->symbiote_migrated) {
 		// Read the GSBASE value from the MSR
 		asm volatile("rdmsr" : "=a" (gs_low), "=d" (gs_high) : "c" (0xC0000101));
 		
@@ -5383,6 +5392,9 @@ context_switch(struct rq *rq, struct task_struct *prev,
 
 		// Update the next task's gsbase value.
 		next->thread.gsbase = kernel_gs;
+
+		// Indicate that the migration has been handled
+		next->symbiote_migrated = 0;
 	}
 #endif
 

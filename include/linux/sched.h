@@ -864,8 +864,11 @@ struct task_struct {
 	unsigned			in_page_owner:1;
 #endif
 #ifdef CONFIG_SYMBIOTE
-  /* Used to signal symbiote status. */
+    /* Used to signal symbiote status. */
 	unsigned			symbiote_elevated:1;
+
+	/* Used to indicate when a symbiote thread migrated cores */
+	unsigned 			symbiote_migrated:1;
 #endif
 
 	unsigned long			atomic_flags; /* Flags requiring atomic access. */

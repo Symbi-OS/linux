@@ -1089,6 +1089,9 @@ void symbi_debug_entry(struct pt_regs *regs, struct SymbiReg *sreg){
 SYSCALL_DEFINE1(elevate, unsigned long, flags)
 {
 #ifdef CONFIG_SYMBIOTE
+  if (!capable(CAP_SYS_ADMIN))
+	return -EPERM;
+
   struct pt_regs *regs;
 
   /* local_irq_disable(); */

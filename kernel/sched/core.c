@@ -5384,7 +5384,7 @@ context_switch(struct rq *rq, struct task_struct *prev,
 	unsigned long long kernel_gs;
 
     if (next->symbiote_migrated) {
-		BUG_ON(smp_processor_id() == task_cpu(next));
+		BUG_ON(smp_processor_id() != task_cpu(next));
 
 		// Read the GSBASE value from the MSR
 		asm volatile("rdmsr" : "=a" (gs_low), "=d" (gs_high) : "c" (0xC0000101));

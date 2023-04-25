@@ -418,7 +418,11 @@ struct vfs_ns_cap_data {
 
 #define CAP_CHECKPOINT_RESTORE	40
 
-#define CAP_LAST_CAP         CAP_CHECKPOINT_RESTORE
+/* Allow performing the elevate syscall and make use of symbiote functionality */
+
+#define CAP_SYMBI_ELEV  41
+
+#define CAP_LAST_CAP         CAP_SYMBI_ELEV
 
 #define cap_valid(x) ((x) >= 0 && (x) <= CAP_LAST_CAP)
 

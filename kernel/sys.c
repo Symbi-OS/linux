@@ -1095,7 +1095,7 @@ SYSCALL_DEFINE1(elevate, unsigned long, flags)
   struct SymbiReg sreg;
   sreg.raw = flags;
 
-  if (!capable(CAP_SYS_ADMIN))
+  if (!capable(CAP_SYMBI_ELEV))
 	return -EPERM;
 
   // User's registers

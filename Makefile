@@ -3,8 +3,7 @@ VERSION = 5
 PATCHLEVEL = 14
 SUBLEVEL = 0
 
-# SYMBIOTE TODO: Can't simply use CONFIG_SYMBIOTE here.
-EXTRAVERSION = -symbiote
+EXTRAVERSION =
 
 NAME = Opossums on Parade
 

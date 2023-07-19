@@ -128,8 +128,14 @@ SYM_INNER_LABEL(entry_SYSCALL_64_after_hwframe, SYM_L_GLOBAL)
 	call	symbi_check_elevate
 	testb	$0x1, %al
 	popq	%rax
-	/* jnz	symbi_swapgs_restore_regs_and_return_to_usermode_iret */
-	jnz	symbi_swapgs_restore_regs_and_return_to_usermode_ret
+	jz	1f
+
+	movq	$__KERNEL_DS, %rcx
+	movq	%rcx, SS(%rsp)
+	movq	$__KERNEL_CS, %rcx
+	movq	%rcx, CS(%rsp)
+
+1:
 #endif
 
 	movq	RCX(%rsp), %rcx

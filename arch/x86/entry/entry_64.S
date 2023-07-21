@@ -122,14 +122,32 @@ SYM_INNER_LABEL(entry_SYSCALL_64_after_hwframe, SYM_L_GLOBAL)
 	ALTERNATIVE "", "jmp	swapgs_restore_regs_and_return_to_usermode", \
 		X86_FEATURE_XENPV
 
+/* XXX: THIS IMPLEMENTATION IS NOT WORKING YET
+ * Within the elevate syscall handler, the CS and SS registers are modified in the pt_regs struct
+ * The code above on the entry path unconditionally pushes the user values for CS and SS for the
+ * pt_regs struct. This would lower any elevated thread that makes any syscall besides kelevate
+ *
+ * The code below is a proposed fix that would check if the thread is elevated and if so, use the
+ * kernel values for CS and SS. This would eliminate the need for a modified exit path for elevated
+ * threads and allow them to use the existing iret path. Existing checks on the exit path ensure
+ * that if the CS and SS values in pt_regs do not match user values IRET will be taken instead
+ * of sysret. This check would prevent an elevated thread from being lowered by the sysret instruction.
+ *
+ * This code checks the elevation status, and if the thread is elevated, the CS and SS values in
+ * the pt_regs struct are fixed up, overwriting the user values pushed on entry with the kernel values.
+ */
 #ifdef CONFIG_SYMBIOTE
   /* Check elevation status. */
 	pushq	%rax
 	call	symbi_check_elevate
 	testb	$0x1, %al
 	popq	%rax
-	jz	1f
+	jz	1f /* If not elevated, no modification */
 
+  /* rcx is used here because it is restored
+   * from the stack in the following instruction,
+   * so clobbering it has no effect
+   */
 	movq	$__KERNEL_DS, %rcx
 	movq	%rcx, SS(%rsp)
 	movq	$__KERNEL_CS, %rcx
@@ -621,116 +639,6 @@ SYM_INNER_LABEL(swapgs_restore_regs_and_return_to_usermode, SYM_L_GLOBAL)
 	/* Restore RDI. */
 	popq	%rdi
 	SWAPGS
-	INTERRUPT_RETURN
-
-SYM_INNER_LABEL(symbi_swapgs_restore_regs_and_return_to_usermode_iret, SYM_L_GLOBAL)
-#ifdef CONFIG_DEBUG_ENTRY
-	/* Assert that pt_regs indicates user mode. */
-	testb	$3, CS(%rsp)
-	jnz	1f
-	ud2
-1:
-#endif
-	POP_REGS pop_rdi=0
-
-	/*
-	 * The stack is now user RDI, orig_ax, RIP, CS, EFLAGS, RSP, SS.
-	 * Save old stack pointer and switch to trampoline stack.
-	 */
-	movq	%rsp, %rdi
-	movq	PER_CPU_VAR(cpu_tss_rw + TSS_sp0), %rsp
-	UNWIND_HINT_EMPTY
-
-	/* Copy the IRET frame to the trampoline stack. */
-	pushq	$__KERNEL_DS	/* SS */
-	pushq	5*8(%rdi)	/* RSP */
-	pushq	4*8(%rdi)	/* EFLAGS */
-	pushq	$__KERNEL_CS	/* CS */
-	pushq	2*8(%rdi)	/* RIP */
-
-	/* Push user RDI on the trampoline stack. */
-	pushq	(%rdi)
-
-	/*
-	 * We are on the trampoline stack.  All regs except RDI are live.
-	 * We can do future final exit work right here.
-	 */
-	STACKLEAK_ERASE_NOCLOBBER
-
-	SWITCH_TO_USER_CR3_STACK scratch_reg=%rdi
-
-	/* Restore RDI. */
-	popq	%rdi
-	SWAPGS
-	INTERRUPT_RETURN
-
-SYM_INNER_LABEL(symbi_swapgs_restore_regs_and_return_to_usermode_ret, SYM_L_GLOBAL)
-#ifdef CONFIG_DEBUG_ENTRY
-	/* Assert that pt_regs indicates user mode. */
-	testb	$3, CS(%rsp)
-	jnz	1f
-	ud2
-1:
-#endif
-	movq	RIP(%rsp), %r15 /* return address in r15 */
-	movq	RSP(%rsp), %r14	 /* user stack in r14 */
-	subq	$0x10, %r14
-	movq	%r15, 8(%r14)
-	movq	EFLAGS(%rsp), %r15 /* EFLAGS in r15 */
-	movq	%r15, (%r14)
-	movq	%r14, RSP(%rsp)
-
-	POP_REGS pop_rdi=0
-
-	/*
-	 * The stack is now user RDI, orig_ax, RIP, CS, EFLAGS, RSP, SS.
-	 * Save old stack pointer and switch to trampoline stack.
-	 */
-	movq	%rsp, %rdi
-	movq	PER_CPU_VAR(cpu_tss_rw + TSS_sp0), %rsp
-	UNWIND_HINT_EMPTY
-
-	/* Copy the IRET frame to the trampoline stack. */
-	pushq	$__KERNEL_DS	/* SS */
-	pushq	5*8(%rdi)	/* RSP */
-	pushq	4*8(%rdi)	/* EFLAGS */
-	pushq	$__KERNEL_CS	/* CS */
-	pushq	2*8(%rdi)	/* RIP */
-
-	/* Push user RDI on the trampoline stack. */
-	pushq	(%rdi)
-
-	/*
-	 * We are on the trampoline stack.  All regs except RDI are live.
-	 * We can do future final exit work right here.
-	 */
-	STACKLEAK_ERASE_NOCLOBBER
-
-	SWITCH_TO_USER_CR3_STACK scratch_reg=%rdi
-
-	/* Restore RDI. */
-	popq	%rdi
-	SWAPGS
-
-	/* Swing to user stack and pop flags */
-	movq 0x18(%rsp), %rsp
-	popfq
-	retq
-
-SYM_INNER_LABEL(restore_regs_and_return_to_kernel, SYM_L_GLOBAL)
-#ifdef CONFIG_DEBUG_ENTRY
-	/* Assert that pt_regs indicates kernel mode. */
-	testb	$3, CS(%rsp)
-	jz	1f
-	ud2
-1:
-#endif
-	POP_REGS
-	addq	$8, %rsp	/* skip regs->orig_ax */
-	/*
-	 * ARCH_HAS_MEMBARRIER_SYNC_CORE rely on IRET core serialization
-	 * when returning from IPI handler.
-	 */
 	INTERRUPT_RETURN
 
 SYM_INNER_LABEL_ALIGN(native_iret, SYM_L_GLOBAL)

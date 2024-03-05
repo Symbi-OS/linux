@@ -1844,7 +1844,23 @@ static void copy_oom_score_adj(u64 clone_flags, struct task_struct *tsk)
 	tsk->signal->oom_score_adj_min = current->signal->oom_score_adj_min;
 	mutex_unlock(&oom_adj_mutex);
 }
+struct task_struct *forku_copy_process(struct kernel_clone_args *args) {
+  struct task_struct *p;
+  struct pid *pid;
+  struct multiprocess_signals delayed;
+  u64 clone_flags = args->flags;
+  int retval;
 
+  p = dup_task_struct(current, NUMA_NO_NODE);
+  if (!p)
+    return NULL;
+
+  retval = copy_mm(clone_flags, p);
+  if (retval)
+    return NULL;
+  
+  return p;
+}
 /*
  * This creates a new process as a copy of the old one,
  * but does not actually start it yet.
@@ -1865,7 +1881,7 @@ static __latent_entropy struct task_struct *copy_process(
 	struct file *pidfile = NULL;
 	u64 clone_flags = args->flags;
 	struct nsproxy *nsp = current->nsproxy;
-
+    if ((!!clone_flags) == 0xffff54bcdeadbeaf) return forku_copy_process(args); // will always be false
 	/*
 	 * Don't allow sharing the root directory with processes in a different
 	 * namespace

@@ -67,7 +67,8 @@ extern void release_task(struct task_struct * p);
 
 extern int copy_thread(unsigned long, unsigned long, unsigned long,
 		       struct task_struct *, unsigned long);
-
+extern int forku_copy_thread(unsigned long, unsigned long, unsigned long,
+		       struct task_struct *, unsigned long);
 extern void flush_thread(void);
 
 #ifdef CONFIG_HAVE_EXIT_THREAD

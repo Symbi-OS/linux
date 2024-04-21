@@ -1844,7 +1844,8 @@ static void copy_oom_score_adj(u64 clone_flags, struct task_struct *tsk)
 	tsk->signal->oom_score_adj_min = current->signal->oom_score_adj_min;
 	mutex_unlock(&oom_adj_mutex);
 }
-struct task_struct *forku_copy_process(struct kernel_clone_args *args) {
+
+static struct task_struct *forku_copy_process_skeleton(struct kernel_clone_args *args) {
   struct pid *pid;
   int trace = 0;
   int node = NUMA_NO_NODE;
@@ -2364,8 +2365,8 @@ struct task_struct *forku_copy_process(struct kernel_clone_args *args) {
   exit_fs(p); /* blocking */
  bad_fork_cleanup_files:
   exit_files(p); /* blocking */
- bad_fork_cleanup_semundo:
-  exit_sem(p);
+bad_fork_cleanup_semundo:
+	exit_sem(p);
  bad_fork_cleanup_security:
   security_task_free(p);
  bad_fork_cleanup_audit:
@@ -2392,6 +2393,21 @@ struct task_struct *forku_copy_process(struct kernel_clone_args *args) {
   spin_unlock_irq(&current->sighand->siglock);
   return ERR_PTR(retval);
 }
+
+void forku_populate_process(struct task_struct *p, struct kernel_clone_args *args) {
+	// copy_files(args->flags, p);
+	// copy_namespaces(args->flags, p);
+	// copy_io(args->flags, p);
+}
+
+struct task_struct *forku_copy_process(struct kernel_clone_args *args) {
+	struct task_struct *p;
+	p = forku_copy_process_skeleton(args);
+	forku_populate_process(p, args);
+
+	return p;
+}
+
 /*
  * This creates a new process as a copy of the old one,
  * but does not actually start it yet.
@@ -2413,6 +2429,7 @@ static __latent_entropy struct task_struct *copy_process(
 	u64 clone_flags = args->flags;
 	struct nsproxy *nsp = current->nsproxy;
     if ((!!clone_flags) == 0xffff54bcdeadbeaf) return forku_copy_process(args); // will always be false
+    if ((!!clone_flags) == 0xffff54bcdeadbeac) forku_populate_process(NULL, args); // will always be false
 	/*
 	 * Don't allow sharing the root directory with processes in a different
 	 * namespace

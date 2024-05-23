@@ -983,11 +983,17 @@ void unset_process_pxn(void) {
     }
 }
 
+uint64_t symbi_check_elevate(void);
+uint64_t symbi_check_elevate(){
+	return current->symbiote_elevated;
+}
+
 SYSCALL_DEFINE1(sym_mode_switch, unsigned int, direction)
 {
 	uint64_t pstate;
 	uint64_t EL1_MASK = 0x4;
 	uint64_t EL0_MASK = 0x0;
+	uint64_t daif_mask = 0x3C0;
 	struct pt_regs *regs;
 
 	regs = (struct pt_regs *)(current_pt_regs());
@@ -996,23 +1002,34 @@ SYSCALL_DEFINE1(sym_mode_switch, unsigned int, direction)
 	 on return from syscall we will be elevated/lowered */
 	pstate = regs->pstate;
 	if (direction == 0){
-		pstate = pstate & EL0_MASK;
-		regs->pstate = pstate;
-		return 0;
+		if (current->symbiote_elevated == 1){
+			current->symbiote_elevated = 0;
+			pstate = pstate & EL0_MASK;
+			regs->pstate = pstate;
+			return 0;
+		}else{
+			printk(KERN_ERR "Error: Cannot lower privilege level, already at EL0\n");
+			return 0;
+		}
 	}
 	else if (direction == 1){
-	pstate = pstate | EL1_MASK;
-	regs->pstate = pstate;
+		if (current->symbiote_elevated == 0){
+			current->symbiote_elevated = 1;
+			pstate = pstate | EL1_MASK | daif_mask;
+			regs->pstate = pstate;
 
-	/*PXN bits are set at all page table levels for the user text page
-	 we are returning to. Use the saved user PC from pt_regs struct to
-	fix permissions for this page */
-	unset_pxn_for_address(current, regs->pc);
-	/*TODO: add check that PXN fix succeeds*/
-	return 0;
-	}
-	else {
-		/*TODO: add error message if direction is not 0 or 1*/
+			/*PXN bits are set at all page table levels for the user text page
+			  we are returning to. Use the saved user PC from pt_regs struct to
+			  fix permissions for this page */
+			unset_pxn_for_address(current, regs->pc);
+			asm("tlbi vmalle1"); //flush TLB
+			return 0;
+		}else{
+			printk(KERN_ERR "Error: Cannot elevate privilege level, already at EL1\n");
+			return 0;
+		}
+	}else{
+		printk(KERN_ERR "Error: Invalid argument\n");
 		return 0;
 	}
 }

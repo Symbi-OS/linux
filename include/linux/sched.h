@@ -864,6 +864,8 @@ struct task_struct {
 	unsigned			in_page_owner:1;
 #endif
 
+	unsigned			symbiote_elevated:1;
+
 	unsigned long			atomic_flags; /* Flags requiring atomic access. */
 
 	struct restart_block		restart_block;

@@ -878,15 +878,11 @@ __SYSCALL(__NR_landlock_restrict_self, sys_landlock_restrict_self)
 __SYSCALL(__NR_memfd_secret, sys_memfd_secret)
 #endif
 
-/* NOTE: Adding this as a stub. need a solution to conditionally include. */
-/* #ifdef CONFIG_SYMBIOTE cries about leaking kern configs to user space */
-/* Add and register elevate syscall */
-/* #define __NR_elevate 448 */
-/* __SYSCALL(__NR_elevate sys_elevate) */
-/* Want to know if this is just for userspace, or if we gotta get it right */
+#define __NR_elevate 448
+__SYSCALL(__NR_elevate, sys_elevate)
 
 #undef __NR_syscalls
-#define __NR_syscalls 448
+#define __NR_syscalls 449
 
 /*
  * 32 bit systems traditionally used different

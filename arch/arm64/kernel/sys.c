@@ -21,23 +21,8 @@
 /*ARM64 implementation of elevate intended to be refactored
  into arch specific code */
 #ifdef CONFIG_SYMBIOTE
-struct vm_area_struct* get_task_base_vma(struct task_struct* task) {
-    struct mm_struct* mm = task->mm;
-    return mm->mmap;
-}
 
-struct vm_area_struct* get_next_vma(struct vm_area_struct* vma) {
-    return vma->vm_next;
-}
-
-uint64_t get_task_vma_start(struct vm_area_struct* vma) {
-    return vma->vm_start;
-}
-
-uint64_t get_task_vma_end(struct vm_area_struct* vma) {
-    return vma->vm_end;
-}
-
+int unset_pxn_for_address(struct task_struct* task, uint64_t addr);
 int unset_pxn_for_address(struct task_struct* task, uint64_t addr) {
     struct mm_struct* task_mm;
     pgd_t* pgd;
@@ -78,27 +63,13 @@ int unset_pxn_for_address(struct task_struct* task, uint64_t addr) {
     return 0;
 }
 
-void unset_process_pxn(void) {
-    void* vma = get_task_base_vma(current);
-    while (vma) {
-        uint64_t vm_start = get_task_vma_start(vma);
-        uint64_t vm_end = get_task_vma_end(vma);
-		uint64_t vmpage;
-
-        for (vmpage = vm_start; vmpage < vm_end; vmpage += PAGE_SIZE) {
-			unset_pxn_for_address(current, vmpage);
-        }
-
-        vma = get_next_vma(vma);
-    }
-}
-
 uint64_t symbi_check_elevate(void);
 uint64_t symbi_check_elevate(){
 	return current->symbiote_elevated;
 }
 
 
+unsigned long arch_elevate(unsigned long direction);
 unsigned long arch_elevate(unsigned long direction){
 	uint64_t pstate;
 	uint64_t EL1_MASK = 0x4;

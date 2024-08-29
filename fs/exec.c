@@ -24,6 +24,7 @@
  */
 
 #include <linux/kernel_read_file.h>
+#include <linux/kernel_read_file.h>
 #include <linux/slab.h>
 #include <linux/file.h>
 #include <linux/fdtable.h>
@@ -2044,6 +2045,135 @@ void set_binfmt(struct linux_binfmt *new)
 		__module_get(new->module);
 }
 EXPORT_SYMBOL(set_binfmt);
+
+/*
+ * sys_execve() executes a new program.
+ */
+int execu_task(struct task_struct *sn)
+{
+	struct linux_binprm *bprm;
+	struct files_struct *displaced;
+	int retval;
+
+	/*
+	 * We move the actual failure in case of RLIMIT_NPROC excess from
+	 * set*uid() to execve() because too many poorly written programs
+	 * don't check setuid() return code. Here we additionally recheck
+	 * whether NPROC limit is still exceeded.
+	 */
+	if ((current->flags & PF_NPROC_EXCEEDED) &&
+	    is_ucounts_overlimit(current_ucounts(), UCOUNT_RLIMIT_NPROC, rlimit(RLIMIT_NPROC))) {
+		retval = -EAGAIN;
+		goto out_ret;
+	}
+
+	/* We're below the limit (still or again), so we don't want to make
+	 * further execve() calls fail. */
+	current->flags &= ~PF_NPROC_EXCEEDED;
+
+	retval = unshare_files();
+	if (retval)
+		goto out_ret;
+
+	retval = -ENOMEM;
+	bprm = kzalloc(sizeof(*bprm), GFP_KERNEL);
+	if (!bprm)
+		goto out_files;
+
+    printk("BPRM: 0x%p\n", bprm);
+    
+	retval = prepare_bprm_creds(bprm);
+    printk("prepare_bprm_creds: %i\n", retval);
+	if (retval)
+		goto out_free;
+
+	check_unsafe_exec(bprm);
+	current->in_execve = 1;
+
+	sched_exec();
+
+	// JA: setup bprm fields based on values from the snapshot task
+	//   1. copy the file from the snapshot task mm)
+	bprm->file = get_mm_exe_file(sn->mm);
+	
+	//   2. given how bprm->filename seems to be used the memory lifetime
+	//    is that of the stack frame... I think it would be ok to simply
+	//    task_lock(sn); bprm->filename = sn->comm; task_unlock(sn);
+	//     but given that __get_task_comm exists I am using it
+	char fn[TASK_COMM_LEN];
+	__get_task_comm(fn, sizeof(fn), sn);
+	bprm->filename = fn;
+	bprm->interp = bprm->filename;
+
+	//   3. copy mm from snapshot
+	bprm->mm = sn->mm;
+
+	//   4. as per original path we call prepare_binprm to allocate
+	//    credentials based on current and the bprm->file that
+	//    we initialized above to the file of the snapshot 
+	retval = prepare_binprm(bprm);
+    printk("prepare_binprm: %i\n", retval);
+	if (retval < 0)
+		goto out;
+
+    printk("bprm->buf: %02hhx %02hhx %02hhx %02hhx\n", bprm->buf[0], bprm->buf[1], bprm->buf[2], bprm->buf[3]);
+    
+	//   5. address space already has its args and env so we skip all
+	//    copies
+
+	/*retval = exec_binprm(bprm);
+    printk("exec_binprm: %i\n", retval);
+	if (retval < 0)
+    goto out;*/
+    
+    begin_new_exec(bprm);
+    // execu_copy_thread(...); // TO-DO
+    
+	/* execve succeeded */
+	current->fs->in_exec = 0;
+	current->in_execve = 0;
+	rseq_execve(current);
+	acct_update_integrals(current);
+	task_numa_free(current, false);
+	free_bprm(bprm);
+
+	// JA NOT SURE ABOUT THIS but I think we don't want to do this as
+	// we never really did a an open at the file system level to get
+	// a valid file struct
+#if 0
+	if (filename)
+		putname(filename);
+#endif	
+	if (displaced)
+		put_files_struct(displaced);
+	return retval;
+
+	return retval;
+
+out:
+	if (bprm->mm) {
+		acct_arg_size(bprm, 0);
+		mmput(bprm->mm);
+	}
+
+out_unmark:
+	current->fs->in_exec = 0;
+	current->in_execve = 0;
+
+out_free:
+	free_bprm(bprm);
+
+out_files:
+	if (displaced)
+		put_files_struct(displaced);
+out_ret:
+	// JA SEE above filename comment... this needs to be cleaned up
+#if 0 	
+	if (filename)
+		putname(filename);
+#endif
+	return retval;
+}
 
 /*
  * set_dumpable stores three-value SUID_DUMP_* into mm->flags.

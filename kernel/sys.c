@@ -969,7 +969,7 @@ SYSCALL_DEFINE1(elevate, unsigned long, flags)
 #ifdef CONFIG_SYMBIOTE
 	return arch_elevate(flags);
 #else
-  return -ENOSYS;
+	return -ENOSYS;
 #endif
 }
 

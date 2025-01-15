@@ -22,6 +22,17 @@
  into arch specific code */
 #ifdef CONFIG_SYMBIOTE
 
+struct SymbiReg {
+    union {
+        uint64_t raw;
+        struct {
+            uint64_t elevate      : 1;
+            uint64_t int_disable  : 1;
+            uint64_t fix_pxn      : 1;
+        };
+    };
+}__attribute__((packed));
+
 int unset_pxn_for_address(struct task_struct* task, uint64_t addr);
 int unset_pxn_for_address(struct task_struct* task, uint64_t addr) {
     struct mm_struct* task_mm;
@@ -69,23 +80,49 @@ uint64_t symbi_check_elevate(){
 }
 
 
-unsigned long arch_elevate(unsigned long direction);
-unsigned long arch_elevate(unsigned long direction){
+unsigned long arch_elevate(unsigned long flags);
+unsigned long arch_elevate(unsigned long flags){
 	uint64_t pstate;
 	uint64_t EL1_MASK = 0x4;
+	/* uint64_t EL1_MASK = 0x5; */
 	uint64_t EL0_MASK = 0x0;
 	uint64_t daif_mask = 0x3C0;
 	struct pt_regs *regs;
+
+    struct SymbiReg sreg;
+    sreg.raw = flags;
 
 	regs = (struct pt_regs *)(current_pt_regs());
 
 	/*mask appropriate bits into saved PSTATE so when state is restored
 	 on return from syscall we will be elevated/lowered */
 	pstate = regs->pstate;
-	if (direction == 0){
+	if (sreg.elevate){
+		if (current->symbiote_elevated == 0){
+			current->symbiote_elevated = 1;
+			pstate = pstate | EL1_MASK;
+            if (sreg.int_disable){
+                pstate = pstate | daif_mask;
+            }
+			regs->pstate = pstate;
+
+			/*PXN bits are set at all page table levels for the user text page
+			  we are returning to. Use the saved user PC from pt_regs struct to
+			  fix permissions for this page */
+            if (sreg.fix_pxn){
+                unset_pxn_for_address(current, regs->pc);
+                asm("tlbi vmalle1"); //flush TLB
+            }
+
+			return 0;
+		}else{
+			printk(KERN_ERR "Error: Cannot elevate privilege level, already at EL1\n");
+			return 0;
+		}
+	}else if (!sreg.elevate){
 		if (current->symbiote_elevated == 1){
 			current->symbiote_elevated = 0;
-			pstate = pstate & EL0_MASK;
+			pstate = pstate & EL0_MASK & ~daif_mask;
 			regs->pstate = pstate;
 			return 0;
 		}else{
@@ -93,23 +130,7 @@ unsigned long arch_elevate(unsigned long direction){
 			return 0;
 		}
 	}
-	else if (direction == 1){
-		if (current->symbiote_elevated == 0){
-			current->symbiote_elevated = 1;
-			pstate = pstate | EL1_MASK | daif_mask;
-			regs->pstate = pstate;
-
-			/*PXN bits are set at all page table levels for the user text page
-			  we are returning to. Use the saved user PC from pt_regs struct to
-			  fix permissions for this page */
-			unset_pxn_for_address(current, regs->pc);
-			asm("tlbi vmalle1"); //flush TLB
-			return 0;
-		}else{
-			printk(KERN_ERR "Error: Cannot elevate privilege level, already at EL1\n");
-			return 0;
-		}
-	}else{
+    else{
 		printk(KERN_ERR "Error: Invalid argument\n");
 		return 0;
 	}
